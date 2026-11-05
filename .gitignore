@@ -11,3 +11,4 @@ tvlib/vendor/sdb/
 build/*
 !build/windows/
 build/pyi/
+tvlib/vendor/apps/

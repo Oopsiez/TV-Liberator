@@ -34,3 +34,8 @@ border:1px solid var(--line);color:var(--muted);margin-left:6px}
 .tag.lg{color:#ff9ec4;border-color:#6b2b46}
 .status{font-size:13px;color:var(--muted)}
 .status b{color:var(--ok)}
+
+.tv.pick { cursor: pointer; }
+.tv.pick:hover { outline: 1px solid #3a6df0; }
+.tv.selected { outline: 2px solid #3a6df0; }
+select { padding: 8px; border-radius: 6px; }

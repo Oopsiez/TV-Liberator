@@ -150,3 +150,109 @@ class LGControl:
             return self.client_key
         finally:
             sock.close()
+
+
+# -- Developer Mode sideload (same path as LG's `ares-install`) --------------
+DEVMODE_SSH_PORT = 9922
+DEVMODE_KEY_PORT = 9991
+DEVMODE_USER = "prisoner"
+DEVMODE_TEMP = "/media/developer/temp"
+_LUNA = "/usr/bin/luna-send-pub"
+
+
+class LGDevMode:
+    """Install .ipk apps over the Developer Mode app's SSH session.
+
+    Needs the Developer Mode app with Dev Mode and Key Server on. The
+    passphrase is the 6-character code shown in that app.
+    """
+
+    def __init__(self, host: str, passphrase: str):
+        self.host = host
+        self.passphrase = passphrase.strip()
+
+    def _key(self):
+        import io
+        import urllib.request
+        import paramiko
+        url = f"http://{self.host}:{DEVMODE_KEY_PORT}/webos_rsa"
+        try:
+            with urllib.request.urlopen(url, timeout=10) as r:  # noqa: S310
+                pem = r.read().decode()
+        except OSError as e:
+            raise LGError(
+                "Could not get the key from the TV. Open the Developer Mode app "
+                "and turn on Key Server.") from e
+        try:
+            return paramiko.RSAKey.from_private_key(
+                io.StringIO(pem), password=self.passphrase or None)
+        except paramiko.SSHException as e:
+            raise LGError("Wrong passphrase. Use the code shown in the TV's "
+                          "Developer Mode app.") from e
+
+    def _client(self):
+        import paramiko
+        c = paramiko.SSHClient()
+        c.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # noqa: S507
+        try:
+            c.connect(self.host, port=DEVMODE_SSH_PORT, username=DEVMODE_USER,
+                      pkey=self._key(), timeout=15, allow_agent=False,
+                      look_for_keys=False)
+        except OSError as e:
+            raise LGError(f"SSH to {self.host}:{DEVMODE_SSH_PORT} failed. Is Dev "
+                          f"Mode on and the session not expired? ({e})") from e
+        return c
+
+    @staticmethod
+    def _luna(c, uri: str, payload: dict, timeout: float = 30) -> str:
+        cmd = f"{_LUNA} -n 1 {uri} '{json.dumps(payload)}'"
+        _, out, err = c.exec_command(cmd, timeout=timeout)
+        return out.read().decode() + err.read().decode()
+
+    def install(self, ipk_path: str, app_id: str, timeout: float = 300) -> str:
+        import os
+        import time
+        c = self._client()
+        try:
+            remote = f"{DEVMODE_TEMP}/{os.path.basename(ipk_path)}"
+            c.exec_command(f"mkdir -p {DEVMODE_TEMP}")[1].read()
+            sftp = c.open_sftp()
+            sftp.put(ipk_path, remote)
+            sftp.close()
+            cmd = (f"{_LUNA} -i luna://com.webos.appInstallService/dev/install "
+                   f"'{json.dumps({'id': app_id, 'ipkUrl': remote, 'subscribe': True})}'")
+            chan = c.get_transport().open_session()
+            chan.exec_command(cmd)
+            buf, log, deadline = "", [], time.time() + timeout
+            while time.time() < deadline:
+                if chan.recv_ready():
+                    buf += chan.recv(4096).decode(errors="replace")
+                    *lines, buf = buf.split("\n")
+                    for line in lines:
+                        log.append(line)
+                        state = ""
+                        try:
+                            state = json.loads(line).get("details", {}).get("state", "")
+                        except ValueError:
+                            pass
+                        if "FAILED" in state.upper():
+                            raise LGError(f"TV refused the install: {line.strip()}")
+                        if state.lower() == "installed":
+                            chan.close()
+                            c.exec_command(f"rm -f {remote}")
+                            return "\n".join(log)
+                elif chan.exit_status_ready():
+                    break
+                else:
+                    time.sleep(0.2)
+            raise LGError("Install did not finish:\n" + "\n".join(log[-5:]))
+        finally:
+            c.close()
+
+    def launch(self, app_id: str) -> str:
+        c = self._client()
+        try:
+            return self._luna(c, "luna://com.webos.applicationManager/dev/launch",
+                              {"id": app_id})
+        finally:
+            c.close()

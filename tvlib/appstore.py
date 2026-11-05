@@ -1,85 +1,64 @@
-"""Fetch installable app packages so the user never hunts for a file.
+"""App catalog: preloaded packages, auto-downloaded when not bundled.
 
-Samsung (.wgt): we use the community jellyfin-tizen-builds releases, which are
-pre-signed with a distributor certificate and install on any Developer-Mode
-Samsung TV. LG (.ipk): the official jellyfin-webos releases.
+The installer bundles each catalog package under tvlib/vendor/apps/. If a
+package is missing (portable/dev run), it is downloaded to the system temp
+folder. Downloads use GitHub's release-download URLs, not the API, so there is
+no rate limit and no token.
 
-Packages are cached under the user's config dir; large binaries are never
-committed to the repo.
+Samsung: jeppevinkel/jellyfin-tizen-builds `Jellyfin.wgt` (stable jellyfin-web,
+pre-signed, required Tizen 2.3+). LG: jellyfin/jellyfin-webos `.ipk`, resolved
+from the release's stable manifest and checked against its sha256.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import sys
+import tempfile
 import urllib.request
 from pathlib import Path
 
-from tvlib.config import config_dir
+TIZEN_DL = "https://github.com/jeppevinkel/jellyfin-tizen-builds/releases/latest/download/"
+WEBOS_DL = "https://github.com/jellyfin/jellyfin-webos/releases/latest/download/"
 
-JELLYFIN_TIZEN_API = (
-    "https://api.github.com/repos/jeppevinkel/jellyfin-tizen-builds/releases/latest"
-)
-JELLYFIN_WEBOS_API = (
-    "https://api.github.com/repos/jellyfin/jellyfin-webos/releases/latest"
-)
+CATALOG: dict[str, dict] = {
+    "jellyfin": {
+        "name": "Jellyfin",
+        "samsung": {"file": "Jellyfin.wgt", "url": TIZEN_DL + "Jellyfin.wgt"},
+        "lg": {"manifest": WEBOS_DL + "org.jellyfin.webos.manifest.json",
+               "app_id": "org.jellyfin.webos"},
+    },
+}
 
 
-def cache_dir() -> Path:
-    d = config_dir() / "packages"
+class AppStoreError(RuntimeError):
+    pass
+
+
+def bundled_dir() -> Path:
+    meipass = getattr(sys, "_MEIPASS", None)
+    root = Path(meipass) / "tvlib" if meipass else Path(__file__).resolve().parent
+    return root / "vendor" / "apps"
+
+
+def download_dir() -> Path:
+    d = Path(tempfile.gettempdir()) / "TVLiberator"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def _get_json(url: str) -> dict:
+def _open(url: str, timeout: int):
     req = urllib.request.Request(url, headers={"User-Agent": "tv-liberator"})
-    with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310
-        return json.loads(r.read().decode())
+    return urllib.request.urlopen(req, timeout=timeout)  # noqa: S310
 
 
 def _download(url: str, dest: Path) -> Path:
-    req = urllib.request.Request(url, headers={"User-Agent": "tv-liberator"})
-    with urllib.request.urlopen(req, timeout=300) as r:  # noqa: S310
-        dest.write_bytes(r.read())
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    with _open(url, 300) as r, tmp.open("wb") as f:
+        for chunk in iter(lambda: r.read(1 << 16), b""):
+            f.write(chunk)
+    tmp.replace(dest)
     return dest
-
-
-def samsung_jellyfin_assets() -> list[dict]:
-    """List the .wgt variants available in the latest Tizen build release."""
-    rel = _get_json(JELLYFIN_TIZEN_API)
-    out = []
-    for a in rel.get("assets", []):
-        if a["name"].endswith(".wgt"):
-            out.append({"name": a["name"], "url": a["browser_download_url"],
-                        "size": a["size"], "tag": rel.get("tag_name", "")})
-    return out
-
-
-def fetch_samsung_jellyfin(variant: str = "Jellyfin-10.11.z.wgt") -> Path:
-    """Download a specific .wgt variant to the cache and return its path."""
-    for a in samsung_jellyfin_assets():
-        if a["name"] == variant:
-            dest = cache_dir() / a["name"]
-            if dest.exists() and dest.stat().st_size == a["size"]:
-                return dest
-            return _download(a["url"], dest)
-    raise FileNotFoundError(f"variant {variant!r} not found in latest release")
-
-
-def lg_jellyfin_asset() -> dict:
-    rel = _get_json(JELLYFIN_WEBOS_API)
-    for a in rel.get("assets", []):
-        if a["name"].endswith(".ipk"):
-            return {"name": a["name"], "url": a["browser_download_url"],
-                    "size": a["size"], "tag": rel.get("tag_name", "")}
-    raise FileNotFoundError("no .ipk in latest jellyfin-webos release")
-
-
-def fetch_lg_jellyfin() -> Path:
-    a = lg_jellyfin_asset()
-    dest = cache_dir() / a["name"]
-    if dest.exists() and dest.stat().st_size == a["size"]:
-        return dest
-    return _download(a["url"], dest)
 
 
 def sha256(path: Path) -> str:
@@ -88,3 +67,58 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: f.read(1 << 16), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _lg_manifest(entry: dict) -> dict:
+    with _open(entry["manifest"], 30) as r:
+        return json.loads(r.read().decode())
+
+
+def catalog(vendor: str) -> list[dict]:
+    """Apps installable on this vendor, for the UI dropdown."""
+    out = []
+    for app_id, app in CATALOG.items():
+        if vendor not in app:
+            continue
+        bundled = any(bundled_dir().glob(f"{vendor}-{app_id}.*"))
+        out.append({"id": app_id, "name": app["name"], "bundled": bundled})
+    return out
+
+
+def resolve(app_id: str, vendor: str, dest_dir: Path | None = None) -> Path:
+    """Return a local package path: bundled copy, else download it."""
+    app = CATALOG.get(app_id)
+    if not app or vendor not in app:
+        raise AppStoreError(f"{app_id!r} is not available for {vendor}")
+    ext = ".wgt" if vendor == "samsung" else ".ipk"
+    pre = bundled_dir() / f"{vendor}-{app_id}{ext}"
+    if pre.exists() and dest_dir is None:
+        return pre
+    entry = app[vendor]
+    dest = (dest_dir or download_dir()) / f"{vendor}-{app_id}{ext}"
+    try:
+        if vendor == "samsung":
+            return _download(entry["url"], dest)
+        man = _lg_manifest(entry)
+        _download(WEBOS_DL + man["ipkUrl"], dest)
+        want = man.get("ipkHash", {}).get("sha256", "")
+        if want and sha256(dest) != want:
+            dest.unlink(missing_ok=True)
+            raise AppStoreError(f"{app['name']} download failed its sha256 check")
+        return dest
+    except OSError as e:
+        raise AppStoreError(
+            f"Could not download {app['name']} for {vendor}: {e}") from e
+
+
+def bundle_all(dest: Path | None = None) -> list[Path]:
+    """Build-time: fetch every catalog package into tvlib/vendor/apps/."""
+    d = dest or (Path(__file__).resolve().parent / "vendor" / "apps")
+    d.mkdir(parents=True, exist_ok=True)
+    return [resolve(a, v, d) for a, app in CATALOG.items()
+            for v in ("samsung", "lg") if v in app]
+
+
+if __name__ == "__main__":
+    for p in bundle_all():
+        print(p, p.stat().st_size)

@@ -14,6 +14,10 @@ $py = "$root\.venv\Scripts\python.exe"
 # Bundle Samsung's sdb so the user never installs Tizen Studio.
 & $py -c "from tvlib.vendor import fetch_sdb; print(fetch_sdb.fetch('windows-64'))"
 
+# Preload the app catalog (Jellyfin for Samsung + LG) into the installer.
+& $py -m tvlib.appstore
+if ($LASTEXITCODE -ne 0) { throw "app catalog download failed" }
+
 Remove-Item -Recurse -Force "$root\build\pyi", "$root\dist" -ErrorAction SilentlyContinue
 & $py -m PyInstaller --noconfirm --clean `
     --distpath "$root\dist" --workpath "$root\build\pyi" `

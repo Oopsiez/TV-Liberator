@@ -12,6 +12,10 @@ sdb_win = ROOT / "tvlib" / "vendor" / "sdb" / "windows"
 if sdb_win.is_dir():
     datas.append((str(sdb_win), "tvlib/vendor/sdb/windows"))
 
+apps = ROOT / "tvlib" / "vendor" / "apps"
+if apps.is_dir():
+    datas.append((str(apps), "tvlib/vendor/apps"))
+
 a = Analysis(
     [str(ROOT / "run.py")],
     pathex=[str(ROOT)],
@@ -22,6 +26,7 @@ a = Analysis(
         "uvicorn.protocols.http.auto",
         "uvicorn.protocols.websockets.auto",
         "uvicorn.lifespan.on",
+        "paramiko",
     ],
     noarchive=False,
 )

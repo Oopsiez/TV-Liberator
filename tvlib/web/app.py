@@ -148,35 +148,46 @@ def guard_stop() -> dict:
 
 class InstallAppBody(BaseModel):
     host: str
-    vendor: str = "samsung"
-    variant: str = "Jellyfin-10.11.z.wgt"
+    vendor: str
+    app_id: str = "jellyfin"
+    passphrase: str = ""
 
 
-@app.get("/api/apps/samsung/jellyfin")
-def samsung_jellyfin_variants() -> dict:
-    try:
-        return {"variants": appstore.samsung_jellyfin_assets()}
-    except Exception as e:  # network/rate-limit
-        raise HTTPException(status_code=502, detail=str(e)) from e
+@app.get("/api/apps/catalog/{vendor}")
+def apps_catalog(vendor: str) -> dict:
+    return {"vendor": vendor, "apps": appstore.catalog(vendor)}
 
 
 @app.post("/api/apps/install")
 def install_app(body: InstallAppBody) -> dict:
-    """Fetch the chosen app package, then sideload it onto the TV."""
+    """Pick the right package for the TV (bundled or auto-downloaded) and
+    sideload it. No file paths from the user."""
     try:
+        pkg = appstore.resolve(body.app_id, body.vendor)
         if body.vendor == "samsung":
-            pkg = appstore.fetch_samsung_jellyfin(body.variant)
             s = samsung.Samsung(body.host)
             s.connect()
             out = s.install(str(pkg))
-            return {"package": pkg.name, "sha256": appstore.sha256(pkg),
-                    "output": out}
-        raise HTTPException(status_code=400,
-                            detail="LG install runs through the dev-mode flow")
-    except samsung.SamsungError as e:
+            try:
+                s.launch(samsung.wgt_app_id(pkg))
+            except samsung.SamsungError:
+                pass
+        elif body.vendor == "lg":
+            if not body.passphrase:
+                raise HTTPException(status_code=400, detail=(
+                    "Enter the passphrase shown in the TV's Developer Mode app."))
+            app_id = appstore.CATALOG[body.app_id]["lg"]["app_id"]
+            dev = lg.LGDevMode(body.host, body.passphrase)
+            out = dev.install(str(pkg), app_id)
+            try:
+                dev.launch(app_id)
+            except lg.LGError:
+                pass
+        else:
+            raise HTTPException(status_code=400, detail="unknown TV vendor")
+        return {"package": pkg.name, "sha256": appstore.sha256(pkg), "output": out}
+    except (samsung.SamsungError, lg.LGError, appstore.AppStoreError) as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except (OSError, FileNotFoundError) as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
 
 
 @app.get("/")

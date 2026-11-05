@@ -25,15 +25,18 @@
 
   <section class="card">
     <h2>2 &middot; Install apps</h2>
-    <p class="hint">Sideload Jellyfin or any package from this PC onto a TV.</p>
+    <p class="hint">Pick a TV from the scan above, pick an app, press Install.
+      The right package for that TV is built in.</p>
     <div class="row">
-      <input id="pkgHost" placeholder="TV IP (e.g. 192.168.1.50)"/>
-      <input id="pkgPath" placeholder="Path to .wgt (Samsung) or .ipk (LG)"/>
-      <button id="install">Install</button>
+      <span id="selTv" class="muted">No TV selected.</span>
+    </div>
+    <div class="row">
+      <select id="appPick" disabled><option>Select a TV first</option></select>
+      <input id="lgPass" placeholder="Passphrase from LG Developer Mode app" hidden/>
+      <button id="install" class="primary" disabled>Install</button>
     </div>
     <pre id="installOut" class="out"></pre>
   </section>
-
   <section class="card">
     <h2>3 &middot; Clean the TV</h2>
     <p class="hint">Microphone, screen-recognition (ACR) and ad/telemetry

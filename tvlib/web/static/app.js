@@ -24,27 +24,54 @@ $("#scan").onclick = async () => {
         'and on this network.</p>';
       return;
     }
-    el.innerHTML = tvs.map((t) => `
-      <div class="tv">
+    el.innerHTML = tvs.map((t, i) => `
+      <div class="tv pick" data-i="${i}" title="Click to select">
         <div class="name">${t.name || t.host}
           <span class="tag ${t.vendor}">${t.vendor}</span></div>
         <div class="muted">${t.host}${t.model ? " · " + t.model : ""}${
           t.firmware ? " · fw " + t.firmware : ""}</div>
         <div class="muted">${t.capability ? t.capability.note : ""}</div>
       </div>`).join("");
+    el.querySelectorAll(".tv.pick").forEach((d) => {
+      d.onclick = () => selectTv(tvs[+d.dataset.i], d);
+    });
+    if (tvs.length === 1) selectTv(tvs[0], el.querySelector(".tv.pick"));
   } catch (e) { el.innerHTML = `<p class="muted">${e.message}</p>`; }
 };
 
-$("#install").onclick = async () => {
-  const out = $("#installOut");
-  out.textContent = "Installing…";
+let selected = null;
+async function selectTv(tv, node) {
+  selected = tv;
+  document.querySelectorAll(".tv.pick").forEach((d) =>
+    d.classList.toggle("selected", d === node));
+  $("#selTv").textContent =
+    `Selected: ${tv.name || tv.host} (${tv.vendor}, ${tv.host})`;
+  $("#lgPass").hidden = tv.vendor !== "lg";
+  const pick = $("#appPick");
   try {
-    const r = await post("/api/samsung/install", {
-      host: $("#pkgHost").value.trim(),
-      package_path: $("#pkgPath").value.trim(),
+    const { apps } = await api(`/api/apps/catalog/${tv.vendor}`);
+    pick.innerHTML = apps.map((a) =>
+      `<option value="${a.id}">${a.name}</option>`).join("");
+    pick.disabled = !apps.length;
+    $("#install").disabled = !apps.length;
+  } catch (e) { $("#installOut").textContent = "Error: " + e.message; }
+}
+
+$("#install").onclick = async () => {
+  if (!selected) return;
+  const out = $("#installOut");
+  const btn = $("#install");
+  btn.disabled = true;
+  out.textContent = `Installing ${$("#appPick").selectedOptions[0].text} on ` +
+    `${selected.host}… this can take a minute.`;
+  try {
+    const r = await post("/api/apps/install", {
+      host: selected.host, vendor: selected.vendor,
+      app_id: $("#appPick").value, passphrase: $("#lgPass").value.trim(),
     });
-    out.textContent = r.output;
+    out.textContent = `Installed ${r.package}.\n\n${r.output}`;
   } catch (e) { out.textContent = "Error: " + e.message; }
+  finally { btn.disabled = false; }
 };
 
 document.querySelectorAll(".planBtn").forEach((b) => {

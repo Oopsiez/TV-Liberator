@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 SDB_PORT = 26101
+DEFAULT_TOOLPATH = "/opt/usr/apps/tmp"
 
 
 class SamsungError(RuntimeError):
@@ -116,11 +117,31 @@ class Samsung:
         return apps
 
     def install(self, wgt_path: str) -> str:
-        """Sideload a .wgt package onto the TV."""
+        """Push a .wgt and install it with the TV's own installer.
+
+        Same sequence as Tizen Studio's `tizen install`: push to the TV's
+        sdk_toolpath, then `vd_appinstall <app-id> <path>`.
+        """
         p = Path(wgt_path)
         if not p.exists():
             raise SamsungError(f"package not found: {wgt_path}")
-        return self._dev("install", str(p), timeout=600)
+        app_id = wgt_app_id(p)
+        try:
+            tool = _cap(self._dev("capability", timeout=20), "sdk_toolpath")
+        except SamsungError:
+            tool = ""
+        remote = f"{tool or DEFAULT_TOOLPATH}/{p.name}"
+        self._dev("push", str(p), remote, timeout=600)
+        out = self._dev("shell", "0", "vd_appinstall", app_id, remote, timeout=600)
+        low = out.lower()
+        if "install failed" in low or "invalid certificate chain" in low:
+            hint = ""
+            if "certificate" in low or "[118" in low:
+                hint = (" This TV rejects the package's signature; it needs a "
+                        "Samsung certificate made for this TV, or remove an "
+                        "older Jellyfin installed from another source first.")
+            raise SamsungError(f"TV refused the install.{hint}\n{out.strip()}")
+        return out
 
     def uninstall(self, app_id: str) -> str:
         return self._dev("uninstall", app_id, timeout=120)
@@ -132,3 +153,14 @@ class Samsung:
 def _cap(cap_output: str, key: str) -> str:
     m = re.search(rf"{re.escape(key)}:(.*)", cap_output)
     return m.group(1).strip() if m else ""
+
+
+def wgt_app_id(path: Path) -> str:
+    """Read the Tizen application id from a .wgt's config.xml."""
+    import zipfile
+    with zipfile.ZipFile(path) as z:
+        xml = z.read("config.xml").decode("utf-8", "replace")
+    m = re.search(r'<tizen:application[^>]*\bid="([^"]+)"', xml)
+    if not m:
+        raise SamsungError(f"{path.name}: no tizen:application id in config.xml")
+    return m.group(1)
