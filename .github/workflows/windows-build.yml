@@ -24,6 +24,20 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: ./build/windows/build.ps1
+      - name: Smoke-test built exe
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist/TV Liberator/TV Liberator.exe" -PassThru
+          $ok = $false
+          foreach ($i in 1..30) {
+            Start-Sleep 2
+            try { $r = Invoke-RestMethod http://127.0.0.1:8777/api/version; $ok = $true; break } catch {}
+            if ($p.HasExited) { break }
+          }
+          if ($ok) { Write-Host "exe answered: $($r | ConvertTo-Json -Compress)" }
+          Get-Content "$env:APPDATA\TVLiberator\tv-liberator.log","$env:APPDATA\tv-liberator\tv-liberator.log" -ErrorAction SilentlyContinue
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) { throw "built exe did not serve /api/version" }
       - name: Read version
         id: v
         shell: pwsh
