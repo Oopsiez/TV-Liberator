@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+dist/
+build/
+.local/
+tvlib/vendor/sdb/
+*.wgt
+*.ipk
+!build/
+build/*
+!build/windows/
+build/pyi/
+tvlib/vendor/apps/

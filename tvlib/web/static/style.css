@@ -1,0 +1,43 @@
+:root{--bg:#0f1115;--card:#171a21;--line:#262b36;--fg:#e8eaf0;--muted:#8b93a7;
+--accent:#4ea1ff;--ok:#39d98a;--bad:#ff6b6b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:baseline;gap:12px;padding:20px 28px;
+border-bottom:1px solid var(--line)}
+h1{font-size:20px;margin:0}
+.version{color:var(--muted);font-size:13px}
+main{max-width:900px;margin:0 auto;padding:24px;display:grid;gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+padding:18px}
+.card-head{display:flex;justify-content:space-between;align-items:center}
+h2{font-size:16px;margin:0 0 6px}
+.hint{color:var(--muted);font-size:13px;margin:4px 0 12px}
+.muted{color:var(--muted)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+input[type=text],input:not([type]){flex:1;min-width:200px}
+input{background:#0d1017;border:1px solid var(--line);color:var(--fg);
+padding:8px 10px;border-radius:6px}
+button{background:#222838;color:var(--fg);border:1px solid var(--line);
+padding:8px 14px;border-radius:6px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:#07111f;border-color:var(--accent);
+font-weight:600}
+.out{background:#0d1017;border:1px solid var(--line);border-radius:6px;
+padding:10px;max-height:240px;overflow:auto;font-size:12px;white-space:pre-wrap}
+.list{display:grid;gap:10px}
+.tv{border:1px solid var(--line);border-radius:8px;padding:12px;background:#0d1017}
+.tv .name{font-weight:600}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;
+border:1px solid var(--line);color:var(--muted);margin-left:6px}
+.tag.samsung{color:#7fc4ff;border-color:#2b4d6b}
+.tag.lg{color:#ff9ec4;border-color:#6b2b46}
+.status{font-size:13px;color:var(--muted)}
+.status b{color:var(--ok)}
+
+.tv.pick { cursor: pointer; }
+.tv.pick:hover { outline: 1px solid #2ecc71; }
+.tv.pick.selected { outline: 3px solid #2ecc71; background: rgba(46, 204, 113, 0.08); }
+.selMark { margin-top: 6px; font-size: 13px; color: #8a93a6; }
+.tv.pick.selected .selMark { color: #2ecc71; font-weight: 600; }
+select { padding: 8px; border-radius: 6px; }

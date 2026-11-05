@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>TV Liberator</title>
+<link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+<header>
+  <h1>TV Liberator</h1>
+  <span class="version">v<span id="version">…</span></span>
+</header>
+
+<main>
+  <section class="card">
+    <div class="card-head">
+      <h2>1 &middot; Your TVs</h2>
+      <button id="scan" class="primary">Scan network</button>
+    </div>
+    <p class="hint">Samsung: on the TV open <b>Apps</b>, type <b>12345</b>, turn on
+      Developer Mode, enter this PC's IP, reboot. Then scan.</p>
+    <div id="tvs" class="list"><p class="muted">No scan yet.</p></div>
+  </section>
+
+  <section class="card">
+    <h2>2 &middot; Install apps</h2>
+    <p class="hint">Pick a TV from the scan above, pick an app, press Install.
+      The right package for that TV is built in.</p>
+    <div class="row">
+      <span id="selTv" class="muted">No TV selected.</span>
+    </div>
+    <div class="row">
+      <select id="appPick" disabled><option>Select a TV first</option></select>
+      <input id="lgPass" placeholder="Passphrase from LG Developer Mode app" hidden/>
+      <button id="install" class="primary" disabled>Install</button>
+    </div>
+    <pre id="installOut" class="out"></pre>
+  </section>
+  <section class="card">
+    <h2>3 &middot; Clean the TV</h2>
+    <p class="hint">Microphone, screen-recognition (ACR) and ad/telemetry
+      services off. Reversible.</p>
+    <div class="row">
+      <button data-vendor="samsung" class="planBtn">Samsung plan</button>
+      <button data-vendor="lg" class="planBtn">LG plan</button>
+    </div>
+    <pre id="planOut" class="out"></pre>
+  </section>
+
+  <section class="card">
+    <h2>4 &middot; Block firmware updates</h2>
+    <p class="hint">Stops an update from undoing your changes.</p>
+    <div class="row">
+      <button data-vendor="samsung" class="updBtn">Samsung</button>
+      <button data-vendor="lg" class="updBtn">LG</button>
+    </div>
+    <pre id="updOut" class="out"></pre>
+  </section>
+
+  <section class="card">
+    <h2>5 &middot; Network guard</h2>
+    <p class="hint">The decisive layer: the TV reaches only what you allow.
+      Point the TV's DNS at this PC.</p>
+    <div class="row">
+      <label><input type="checkbox" class="prof" value="youtube" checked/> YouTube</label>
+      <label><input type="checkbox" class="prof" value="jellyfin" checked/> Jellyfin</label>
+      <label><input type="checkbox" class="prof" value="time-and-net" checked/> Clock/connectivity</label>
+    </div>
+    <div class="row">
+      <input id="extraAllow" placeholder="Extra allowed domains, comma separated"/>
+      <button id="guardStart" class="primary">Start guard</button>
+      <button id="guardStop">Stop</button>
+    </div>
+    <div id="guardStatus" class="status"></div>
+  </section>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>

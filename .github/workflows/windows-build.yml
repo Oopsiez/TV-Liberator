@@ -1,0 +1,65 @@
+name: windows-build
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: "Publish a downloadable pre-release"
+        type: boolean
+        default: true
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests
+        run: |
+          python -m pip install -r requirements.txt
+          python -m unittest discover -s tvlib/tests -t . -v
+      - name: Build installer
+        shell: pwsh
+        run: ./build/windows/build.ps1
+      - name: Smoke-test built exe
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist/TV Liberator/TV Liberator.exe" -PassThru
+          $ok = $false
+          foreach ($i in 1..30) {
+            Start-Sleep 2
+            try { $r = Invoke-RestMethod http://127.0.0.1:8777/api/version; $ok = $true; break } catch {}
+            if ($p.HasExited) { break }
+          }
+          if ($ok) { Write-Host "exe answered: $($r | ConvertTo-Json -Compress)" }
+          Get-Content "$env:APPDATA\TVLiberator\tv-liberator.log","$env:APPDATA\tv-liberator\tv-liberator.log" -ErrorAction SilentlyContinue
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) { throw "built exe did not serve /api/version" }
+      - name: Read version
+        id: v
+        shell: pwsh
+        run: "\"version=$((Get-Content VERSION).Trim())\" >> $env:GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TV-Liberator-Setup-${{ steps.v.outputs.version }}
+          path: dist/TV-Liberator-Setup-*.exe
+          if-no-files-found: error
+      - name: Publish pre-release
+        if: github.event_name == 'workflow_dispatch' && inputs.prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = "${{ steps.v.outputs.version }}"
+          $exe = Get-ChildItem dist/TV-Liberator-Setup-*.exe | Select-Object -First 1
+          gh release view "v$v" 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create "v$v" $exe.FullName --prerelease --target "${{ github.sha }}" `
+              --title "TV Liberator v$v (test build)" `
+              --notes "Test build from ${{ github.ref_name }}. Download TV-Liberator-Setup-$v.exe and double-click."
+          } else {
+            gh release upload "v$v" $exe.FullName --clobber
+          }
