@@ -98,6 +98,17 @@ class Samsung:
             pass
         return dev
 
+    def kill_server(self) -> None:
+        """Stop sdb's background server.
+
+        sdb starts a detached server process that outlives the app and then
+        blocks the installer from replacing sdb.exe. Shut it down when done.
+        """
+        try:
+            self._run("kill-server", timeout=15)
+        except (SamsungError, OSError, subprocess.SubprocessError):
+            pass
+
     def disconnect(self) -> None:
         try:
             self._run("disconnect", self._serial(), timeout=10)

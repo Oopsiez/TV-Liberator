@@ -84,3 +84,15 @@ class SamsungInstallTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SdbServerTests(unittest.TestCase):
+    def test_kill_server_called_and_errors_swallowed(self):
+        with mock.patch.object(samsung, "sdb_path", return_value="sdb"):
+            s = samsung.Samsung("127.0.0.1")
+            with mock.patch.object(s, "_run") as run:
+                s.kill_server()
+            run.assert_called_once_with("kill-server", timeout=15)
+            with mock.patch.object(s, "_run",
+                                   side_effect=samsung.SamsungError("boom")):
+                s.kill_server()

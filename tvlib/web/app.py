@@ -153,6 +153,15 @@ class InstallAppBody(BaseModel):
     passphrase: str = ""
 
 
+@app.on_event("shutdown")
+def _stop_sdb() -> None:
+    """Close sdb's background server so it can't block the next install."""
+    try:
+        samsung.Samsung("127.0.0.1").kill_server()
+    except samsung.SamsungError:
+        pass
+
+
 @app.get("/api/apps/catalog/{vendor}")
 def apps_catalog(vendor: str) -> dict:
     return {"vendor": vendor, "apps": appstore.catalog(vendor)}

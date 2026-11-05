@@ -19,6 +19,35 @@ PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
 WizardStyle=modern
+; sdb.exe is a background server the app starts; it keeps running after the
+; app closes and is only visible on Task Manager's Details tab. Close it (and
+; a running panel) ourselves instead of telling the user files are in use.
+CloseApplications=force
+RestartApplications=no
+
+[Code]
+procedure KillLeftovers;
+var
+  rc: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM sdb.exe',
+       '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM "TV Liberator.exe"',
+       '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Sleep(500);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  KillLeftovers;
+  Result := '';
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  KillLeftovers;
+  Result := True;
+end;
 
 [Files]
 Source: "..\..\dist\TV Liberator\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
