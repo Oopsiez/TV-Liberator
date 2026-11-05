@@ -7,7 +7,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import Request
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -153,6 +154,13 @@ class InstallAppBody(BaseModel):
     passphrase: str = ""
 
 
+@app.middleware("http")
+async def _no_cache(request: Request, call_next):
+    resp = await call_next(request)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @app.on_event("shutdown")
 def _stop_sdb() -> None:
     """Close sdb's background server so it can't block the next install."""
@@ -200,8 +208,12 @@ def install_app(body: InstallAppBody) -> dict:
 
 
 @app.get("/")
-def index() -> FileResponse:
-    return FileResponse(STATIC / "index.html")
+def index() -> HTMLResponse:
+    # Stamp asset URLs with the version so an upgrade never runs stale JS/CSS.
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    for asset in ("app.js", "style.css"):
+        html = html.replace(f"/static/{asset}", f"/static/{asset}?v={__version__}")
+    return HTMLResponse(html)
 
 
 if STATIC.exists():

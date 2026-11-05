@@ -31,6 +31,7 @@ $("#scan").onclick = async () => {
         <div class="muted">${t.host}${t.model ? " · " + t.model : ""}${
           t.firmware ? " · fw " + t.firmware : ""}</div>
         <div class="muted">${t.capability ? t.capability.note : ""}</div>
+        <button class="selBtn">Select this TV</button>
       </div>`).join("");
     el.querySelectorAll(".tv.pick").forEach((d) => {
       d.onclick = () => selectTv(tvs[+d.dataset.i], d);
@@ -42,8 +43,11 @@ $("#scan").onclick = async () => {
 let selected = null;
 async function selectTv(tv, node) {
   selected = tv;
-  document.querySelectorAll(".tv.pick").forEach((d) =>
-    d.classList.toggle("selected", d === node));
+  document.querySelectorAll(".tv.pick").forEach((d) => {
+    d.classList.toggle("selected", d === node);
+    d.querySelector(".selBtn").textContent =
+      d === node ? "Selected \u2713" : "Select this TV";
+  });
   $("#selTv").textContent =
     `Selected: ${tv.name || tv.host} (${tv.vendor}, ${tv.host})`;
   $("#lgPass").hidden = tv.vendor !== "lg";
