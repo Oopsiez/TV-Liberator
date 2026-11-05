@@ -60,7 +60,7 @@ Name: "{autodesktop}\TV Liberator"; Filename: "{app}\TV Liberator.exe"
 ; Let the guard and SDB through the Windows firewall so the TVs can reach them.
 Filename: "netsh"; Parameters: "advfirewall firewall add rule name=""TV Liberator DNS"" dir=in action=allow protocol=UDP localport=53"; Flags: runhidden
 Filename: "netsh"; Parameters: "advfirewall firewall add rule name=""TV Liberator Panel"" dir=in action=allow protocol=TCP localport=8777"; Flags: runhidden
-Filename: "{app}\TV Liberator.exe"; Description: "Launch TV Liberator"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\TV Liberator.exe"; Description: "Launch TV Liberator"; Flags: nowait postinstall skipifsilent shellexec
 
 [UninstallRun]
 Filename: "netsh"; Parameters: "advfirewall firewall delete rule name=""TV Liberator DNS"""; Flags: runhidden

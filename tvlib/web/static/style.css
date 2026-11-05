@@ -36,8 +36,8 @@ border:1px solid var(--line);color:var(--muted);margin-left:6px}
 .status b{color:var(--ok)}
 
 .tv.pick { cursor: pointer; }
-.tv.pick:hover { outline: 1px solid #3a6df0; }
-.tv.selected { outline: 2px solid #3a6df0; }
+.tv.pick:hover { outline: 1px solid #2ecc71; }
+.tv.pick.selected { outline: 3px solid #2ecc71; background: rgba(46, 204, 113, 0.08); }
+.selMark { margin-top: 6px; font-size: 13px; color: #8a93a6; }
+.tv.pick.selected .selMark { color: #2ecc71; font-weight: 600; }
 select { padding: 8px; border-radius: 6px; }
-.selBtn { margin-top: 8px; }
-.tv.selected .selBtn { background: #3a6df0; color: #fff; }
