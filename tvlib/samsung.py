@@ -83,12 +83,14 @@ class Samsung:
     # -- connection ----------------------------------------------------------
     def connect(self) -> SamsungDevice:
         """Connect sdb to the TV. Requires Developer Mode + this PC's IP set."""
-        out = self._run("connect", self._serial(), timeout=20)
+        try:
+            out = self._run("connect", self._serial(), timeout=20)
+        except SamsungError as e:
+            raise SamsungError(diagnose_devmode(self.host) or str(e)) from e
         if "connected" not in out.lower() and "already" not in out.lower():
-            raise SamsungError(
+            raise SamsungError(diagnose_devmode(self.host) or (
                 f"Could not connect to {self.host}. Is Developer Mode on and "
-                f"this PC's IP entered on the TV? sdb said: {out.strip()}"
-            )
+                f"this PC's IP entered on the TV? sdb said: {out.strip()}"))
         dev = SamsungDevice(host=self.host, serial=self._serial())
         try:
             cap = self._dev("capability", timeout=20)
@@ -175,3 +177,49 @@ def wgt_app_id(path: Path) -> str:
     if not m:
         raise SamsungError(f"{path.name}: no tizen:application id in config.xml")
     return m.group(1)
+
+
+def local_ip_for(host: str) -> str:
+    """The IP this PC uses to reach `host` (what the TV must have as Developer IP)."""
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect((host, 9))
+        return sock.getsockname()[0]
+    except OSError:
+        return ""
+    finally:
+        sock.close()
+
+
+def devmode_info(host: str, timeout: float = 4.0) -> dict:
+    """Developer Mode state as the TV reports it on its REST endpoint."""
+    import json
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"http://{host}:8001/api/v2/",  # noqa: S310
+                                    timeout=timeout) as r:
+            return json.loads(r.read().decode()).get("device", {})
+    except (OSError, ValueError):
+        return {}
+
+
+def diagnose_devmode(host: str) -> str:
+    """Say exactly why sdb can't reach the TV, or '' if we can't tell."""
+    dev = devmode_info(host)
+    if not dev:
+        return ""
+    pc = local_ip_for(host)
+    mode = str(dev.get("developerMode", ""))
+    dip = str(dev.get("developerIP", "")).strip()
+    steps = ("On the TV: open Apps, type 12345, set Developer Mode On, enter "
+             f"{pc or 'this PC’s IP'}, press OK, then hold the remote's power "
+             "button until the TV restarts.")
+    if mode != "1":
+        return f"Developer Mode is OFF on {host}. {steps}"
+    if pc and dip and dip != pc:
+        return (f"The TV's Developer IP is {dip}, but this PC is {pc}. {steps}")
+    return (f"Developer Mode is on and set to this PC ({dip}), but the TV isn't "
+            f"listening yet. Hold the remote's power button until the TV "
+            f"restarts, then try again. If it still fails, allow TV Liberator "
+            f"through any VPN or third-party firewall.")

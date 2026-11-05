@@ -96,3 +96,32 @@ class SdbServerTests(unittest.TestCase):
             with mock.patch.object(s, "_run",
                                    side_effect=samsung.SamsungError("boom")):
                 s.kill_server()
+
+
+class DevModeDiagnosisTests(unittest.TestCase):
+    def _diag(self, dev, pc="192.168.0.20"):
+        with mock.patch.object(samsung, "devmode_info", return_value=dev), \
+             mock.patch.object(samsung, "local_ip_for", return_value=pc):
+            return samsung.diagnose_devmode("192.168.0.6")
+
+    def test_off(self):
+        self.assertIn("OFF", self._diag({"developerMode": "0", "developerIP": ""}))
+
+    def test_wrong_ip(self):
+        msg = self._diag({"developerMode": "1", "developerIP": "192.168.0.99"})
+        self.assertIn("192.168.0.99", msg)
+        self.assertIn("192.168.0.20", msg)
+
+    def test_needs_restart(self):
+        self.assertIn("restarts", self._diag({"developerMode": "1", "developerIP": "192.168.0.20"}))
+
+    def test_unreachable_tv(self):
+        self.assertEqual(self._diag({}), "")
+
+    def test_connect_failure_uses_diagnosis(self):
+        with mock.patch.object(samsung, "sdb_path", return_value="sdb"):
+            s = samsung.Samsung("192.168.0.6")
+        with mock.patch.object(s, "_run", side_effect=samsung.SamsungError("failed")), \
+             mock.patch.object(samsung, "diagnose_devmode", return_value="Developer Mode is OFF"):
+            with self.assertRaisesRegex(samsung.SamsungError, "OFF"):
+                s.connect()
