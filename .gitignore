@@ -7,3 +7,7 @@ build/
 tvlib/vendor/sdb/
 *.wgt
 *.ipk
+!build/
+build/*
+!build/windows/
+build/pyi/

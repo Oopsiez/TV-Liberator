@@ -14,6 +14,7 @@ import os
 import platform
 import re
 import shutil
+import sys
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,7 +27,10 @@ class SamsungError(RuntimeError):
 
 
 def _vendor_sdb() -> str | None:
-    base = Path(__file__).resolve().parent / "vendor" / "sdb"
+    # PyInstaller unpacks bundled data under sys._MEIPASS.
+    meipass = getattr(sys, "_MEIPASS", None)
+    root = Path(meipass) / "tvlib" if meipass else Path(__file__).resolve().parent
+    base = root / "vendor" / "sdb"
     system = platform.system().lower()
     name = "sdb.exe" if system == "windows" else "sdb"
     cand = base / system / name
